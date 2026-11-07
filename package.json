@@ -1,0 +1,22 @@
+{
+  "name": "teams-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.22.0",
+  "engines": { "node": ">=20.12" },
+  "scripts": {
+    "start": "node --env-file=.env src/cli.js",
+    "once": "node --env-file=.env src/cli.js --once",
+    "send": "node --env-file=.env src/cli.js --send",
+    "test-message": "node --env-file=.env src/cli.js --test-message",
+    "show": "node src/cli.js --show",
+    "preview": "node src/cli.js --preview",
+    "test": "node --test",
+    "lint": "oxlint",
+    "audit": "pnpm audit --prod --audit-level=high"
+  },
+  "devDependencies": {
+    "oxlint": "^1.90.0"
+  }
+}
