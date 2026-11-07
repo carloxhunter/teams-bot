@@ -123,10 +123,12 @@ stop the scheduler before using `once`. After a hard crash a stale
 `data/rotation.lock` can remain: check the recorded PID and remove **only that
 lock file** after confirming the process is gone.
 
-Assignments are saved **before** posting. HTTP failures/timeouts stop the process
-with a nonzero exit code. A crash or timeout can happen after Teams accepted a
-message: exactly-once delivery cannot be guaranteed by this webhook.
-The app blocks automatic resend of an uncertain attempt. Inspect the chat and
+Assignments are saved **before** posting. If the webhook answers with a non-2xx
+HTTP status, the day returns to `pending` and the same plan is retried
+automatically on the next run. Network errors and timeouts stop the process with
+a nonzero exit code and leave the day `sending` (blocked): a crash or timeout can
+happen after Teams accepted a message, and exactly-once delivery cannot be
+guaranteed by this webhook. The app blocks automatic resend of an uncertain attempt. Inspect the chat and
 Workflow run history, then, **only if no message was posted**, run:
 
 ```sh
@@ -142,3 +144,31 @@ history for downstream failures.
 Microsoft's [webhook documentation](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook)
 links to Workflow creation and explains why new integrations should use Workflows
 rather than the retiring Microsoft 365 connectors.
+
+## Cloudflare Worker
+
+The same rotation also runs as a Cloudflare Worker (`src/worker/index.js`) driven
+by a cron trigger; the Node CLI above keeps working unchanged.
+
+- **Cron:** `0,15,30 12,13 * * 1-5` (UTC). Cron is UTC-only, so it fires at both
+  12:xx and 13:xx to cover Chile's DST changes. On each run the Worker converts the
+  time to `TIME_ZONE` (`America/Santiago`) and only acts on a weekday at or after
+  `ANNOUNCEMENT_TIME` (`09:00`) and before one hour later. The extra triggers retry
+  a rejected post within that window; a day already sent is never posted twice.
+- **Holidays:** Chilean public holidays live in the `holidays` D1 table (seeded by
+  `migrations/0002_holidays_cl.sql`, 2026-2027; verify against an official source
+  and add later years with a new migration). Holidays are skipped.
+- **D1 tables:** `participants`, `vacations`, `days`, `weeks`, `meta`, `holidays`.
+- **No HTTP endpoints:** every request returns 404 and never touches the database.
+- **Secrets:** `TEAMS_WEBHOOK_URL` is a secret, never a var.
+
+### First deploy / data migration
+
+1. `npx wrangler login`
+2. `npx wrangler d1 migrations apply teams-bot --remote`
+3. `pnpm migrate:d1 <path outside the repo>.sql`, then
+   `npx wrangler d1 execute teams-bot --remote --file <that file>`, then delete the file.
+4. `npx wrangler secret put TEAMS_WEBHOOK_URL`
+5. `pnpm deploy`
+6. Stop the old local scheduler so it does not post twice.
+7. Verify the holidays: `npx wrangler d1 execute teams-bot --remote --command "SELECT * FROM holidays"`.

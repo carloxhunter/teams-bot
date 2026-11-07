@@ -9,7 +9,7 @@ function validDate(value) {
   );
 }
 
-function validateState(state) {
+export function validateState(state) {
   const record = (value) =>
     value && typeof value === "object" && !Array.isArray(value);
   const name = (value) => typeof value === "string" && value.trim().length > 0;
