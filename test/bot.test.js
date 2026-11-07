@@ -22,7 +22,7 @@ import {
   testCardFor,
   validateConfig,
 } from "../src/rotation.js";
-import { announce, postCard, validateWebhook } from "../src/delivery.js";
+import { WebhookRejectedError, announce, postCard, validateWebhook } from "../src/delivery.js";
 import {
   loadState,
   loadVacations,
@@ -513,24 +513,52 @@ test("forced send reuses today's plan and can post repeatedly without changing r
   assert.equal(await announce(input), "already-sent");
 });
 
-test("failed and interrupted delivery blocks automatic retries; explicit retry reuses the plan", async (t) => {
+test("rejected delivery returns to pending; interrupted delivery blocks automatic retries; explicit retry reuses the plan", async (t) => {
+  const url = "https://webhook.test/hook";
+  const posted = [];
+  let behavior;
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    posted.push(JSON.parse(init.body));
+    return behavior();
+  });
+
+  // HTTP 500: rejected -> pending, retried automatically with the same plan.
+  const rejectedDirectory = await temporary(t);
+  const rejected = { directory: rejectedDirectory, config, day: monday, url };
+  behavior = () => new Response("err", { status: 500 });
+  await assert.rejects(announce({ ...rejected, send: postCard }), (error) => {
+    assert.ok(error instanceof WebhookRejectedError);
+    assert.equal(error.status, 500);
+    assert.match(error.message, /Webhook returned HTTP 500\. Check the Workflow run history/);
+    return true;
+  });
+  const pending = (await loadState(rejectedDirectory)).days[monday.date];
+  assert.equal(pending.status, "pending");
+  behavior = () => new Response("ok", { status: 200 });
+  assert.equal(await announce({ ...rejected, send: postCard }), "accepted");
+  const sent = (await loadState(rejectedDirectory)).days[monday.date];
+  assert.equal(sent.status, "sent");
+  assert.equal(sent.presenter, pending.presenter);
+  assert.deepEqual(sent.order, pending.order);
+  assert.equal(posted.length, 2);
+
+  // Network failure / timeout: uncertain -> sending, blocks automatic retries.
   const directory = await temporary(t);
-  const input = { directory, config, day: monday };
+  const input = { directory, config, day: monday, url };
+  behavior = () => {
+    throw new TypeError("fetch failed");
+  };
   await assert.rejects(
-    announce({
-      ...input,
-      send: async () => {
-        throw new Error("offline");
-      },
-    }),
-    /offline/,
+    announce({ ...input, send: postCard }),
+    (error) => !(error instanceof WebhookRejectedError) && /network error or timeout/.test(error.message),
   );
   const before = await loadState(directory);
+  assert.equal(before.days[monday.date].status, "sending");
   let calls = 0;
   const send = async () => {
     calls++;
   };
-  await assert.rejects(announce({ ...input, send }), /uncertain/);
+  await assert.rejects(announce({ ...input, send }), /Delivery is uncertain/);
   assert.equal(calls, 0);
   await announce({ ...input, send, retry: true });
   const after = await loadState(directory);

@@ -15,6 +15,14 @@ export function validateWebhook(value) {
   return url;
 }
 
+export class WebhookRejectedError extends Error {
+  constructor(status) {
+    super(`Webhook returned HTTP ${status}. Check the Workflow run history before retrying.`);
+    this.name = "WebhookRejectedError";
+    this.status = status;
+  }
+}
+
 export async function postCard(url, card) {
   let response;
   try {
@@ -31,14 +39,15 @@ export async function postCard(url, card) {
   }
   await response.body?.cancel();
   if (!response.ok) {
-    throw new Error(`Webhook returned HTTP ${response.status}. Check the Workflow run history before retrying.`);
+    throw new WebhookRejectedError(response.status);
   }
 }
 
-export async function announce({
-  directory, config, day, url, retry = false, force = false, send = postCard,
+export async function announceWith({
+  store: { load, save }, config, day, url, retry = false, force = false, send = postCard, holidays = [],
 }) {
-  const state = await loadState(directory);
+  if (holidays.includes(day.date)) return "holiday";
+  const state = await load();
   let plan = planDay(state, config, day);
   if (plan.status === "sent" && !force) return "already-sent";
   if (plan.status === "sending" && !retry) {
@@ -54,9 +63,26 @@ export async function announce({
     plan = planDay(state, config, day);
   }
   plan.status = "sending";
-  await saveState(directory, state);
-  await send(url, cardFor(day.date, plan, config.participants));
+  await save(state);
+  try {
+    await send(url, cardFor(day.date, plan, config.participants));
+  } catch (error) {
+    if (error instanceof WebhookRejectedError) {
+      plan.status = "pending";
+      await save(state);
+    }
+    throw error;
+  }
   plan.status = "sent";
-  await saveState(directory, state);
+  await save(state);
   return "accepted";
+}
+
+export function announce({
+  directory, config, day, url, retry = false, force = false, send = postCard,
+}) {
+  return announceWith({
+    store: { load: () => loadState(directory), save: state => saveState(directory, state) },
+    config, day, url, retry, force, send,
+  });
 }
