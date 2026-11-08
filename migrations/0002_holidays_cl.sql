@@ -25,6 +25,7 @@ INSERT INTO holidays (date, name) VALUES ('2027-06-21', 'Día Nacional de los Pu
 INSERT INTO holidays (date, name) VALUES ('2027-06-28', 'San Pedro y San Pablo');
 INSERT INTO holidays (date, name) VALUES ('2027-07-16', 'Virgen del Carmen');
 INSERT INTO holidays (date, name) VALUES ('2027-08-15', 'Asunción de la Virgen');
+INSERT INTO holidays (date, name) VALUES ('2027-09-17', 'Feriado adicional de Fiestas Patrias (Ley 20.983)');
 INSERT INTO holidays (date, name) VALUES ('2027-09-18', 'Independencia Nacional');
 INSERT INTO holidays (date, name) VALUES ('2027-09-19', 'Día de las Glorias del Ejército');
 INSERT INTO holidays (date, name) VALUES ('2027-10-11', 'Encuentro de Dos Mundos');
