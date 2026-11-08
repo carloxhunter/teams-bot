@@ -3,7 +3,8 @@
   "main": "src/worker/index.js",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
-  // account_id will be pinned later (separate Cloudflare account "bots").
+  // Cloudflare account "bots" (only for bots, apart from OpenSpend and the toolbox). Account IDs aren't secrets.
+  "account_id": "b20c6089b80c5fec5f477d3ad241035c",
   "workers_dev": false,
   "preview_urls": false,
   "observability": { "enabled": true },
