@@ -162,6 +162,20 @@ by a cron trigger; the Node CLI above keeps working unchanged.
 - **No HTTP endpoints:** every request returns 404 and never touches the database.
 - **Secrets:** `TEAMS_WEBHOOK_URL` is a secret, never a var.
 
+### Deploying changes
+
+Every change is a pull request into `main`. When CI passes on `main` after the merge,
+the **Deploy** workflow (`.github/workflows/deploy.yml`) applies the D1 migrations and
+deploys the Worker; nobody needs Cloudflare access for it. The author may merge their
+own PR: `main` only requires the CI checks to pass (no second approval).
+
+- Code or config change: just the PR.
+- Data change (holidays, participants…): add a new file in `migrations/`
+  (`0003_….sql`); never edit a migration that already ran.
+- Re-deploy `main` by hand: Actions → Deploy → Run workflow.
+- The Cloudflare token is the secret `CLOUDFLARE_API_TOKEN` of the GitHub environment
+  `production` (deployments only from `main`).
+
 ### First deploy / data migration
 
 1. `npx wrangler login`
