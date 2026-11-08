@@ -33,9 +33,10 @@ async function main(output) {
   const configPath = path.resolve(process.env.TEAMS_BOT_CONFIG ?? "./config.js");
   const directory = path.resolve(process.env.TEAMS_BOT_DATA_DIR ?? "./data");
   const config = (await import(pathToFileURL(configPath).href)).default;
-  validateConfig(config);
   const state = await loadState(directory);
   const vacations = await loadVacations(directory);
+  // validateConfig also checks the vacations against the participants.
+  validateConfig({ ...config, vacations });
   await writeFile(output, toSql({ config, state, vacations }), { mode: 0o600 });
   console.log(`Wrote ${output}: ${config.participants.length} participants, ${vacations.length} vacations, ` +
     `${Object.keys(state.weeks).length} weeks, ${Object.keys(state.days).length} days.`);
