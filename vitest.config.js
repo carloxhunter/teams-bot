@@ -18,7 +18,8 @@ export default defineConfig({
         d1Databases: ["DB"],
         bindings: {
           TIME_ZONE: "America/Santiago",
-          ANNOUNCEMENT_TIME: "09:00",
+          ANNOUNCEMENT_TIME: "08:30",
+          ANNOUNCEMENT_LAST_TRY: "09:25",
           TEAMS_WEBHOOK_URL: "https://webhook.test/hook?sig=SECRET-SIG-123",
           TEST_MIGRATIONS: migrations,
         },

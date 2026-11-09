@@ -60,6 +60,7 @@ export function workerEnv(overrides = {}) {
     TEAMS_WEBHOOK_URL: env.TEAMS_WEBHOOK_URL,
     TIME_ZONE: env.TIME_ZONE,
     ANNOUNCEMENT_TIME: env.ANNOUNCEMENT_TIME,
+    ANNOUNCEMENT_LAST_TRY: env.ANNOUNCEMENT_LAST_TRY,
     ...overrides,
   };
 }
