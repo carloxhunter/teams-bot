@@ -5,7 +5,8 @@
   "compatibility_flags": ["nodejs_compat"],
   // Cloudflare account "bots" (only for bots, apart from OpenSpend and the toolbox). Account IDs aren't secrets.
   "account_id": "b20c6089b80c5fec5f477d3ad241035c",
-  "workers_dev": false,
+  // workers.dev only serves POST /debug/resend-last (Bearer DEBUG_TOKEN); everything else is 404.
+  "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": true },
   // Cron is UTC: covers 08:30-09:25 Chile in both UTC-3 (11:30-12:25Z) and UTC-4 (12:30-13:25Z); every 5 minutes acts as retry.
@@ -18,6 +19,6 @@
       "migrations_dir": "migrations"
     }
   ],
-  // TEAMS_WEBHOOK_URL is a secret: set it with `wrangler secret put TEAMS_WEBHOOK_URL`.
+  // TEAMS_WEBHOOK_URL and DEBUG_TOKEN are secrets: set them with `wrangler secret put <NAME>`.
   "vars": { "TIME_ZONE": "America/Santiago", "ANNOUNCEMENT_TIME": "08:30", "ANNOUNCEMENT_LAST_TRY": "09:25" }
 }

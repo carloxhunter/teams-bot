@@ -161,8 +161,25 @@ by a cron trigger; the Node CLI above keeps working unchanged.
   `migrations/0002_holidays_cl.sql`, 2026-2027; verify against an official source
   and add later years with a new migration). Holidays are skipped.
 - **D1 tables:** `participants`, `vacations`, `days`, `weeks`, `meta`, `holidays`.
-- **No HTTP endpoints:** every request returns 404 and never touches the database.
-- **Secrets:** `TEAMS_WEBHOOK_URL` is a secret, never a var.
+- **Logs:** each attempt logs one line in Workers Logs (Observability): `accepted` with
+  the HTTP status and ms; `rejected` (HTTP status, retried); `timeout` or `network-error`
+  with the error name (delivery uncertain, the day stays `sending` and is not retried);
+  `skipped: delivery uncertain` while a day is `sending`. The webhook URL is never logged.
+- **HTTP:** only `POST /debug/resend-last` with `Authorization: Bearer <DEBUG_TOKEN>`
+  exists (on `teams-bot.team-bots.workers.dev`). Anything else, a wrong token or no
+  `DEBUG_TOKEN` secret answers 404 without touching the database.
+- **Secrets:** `TEAMS_WEBHOOK_URL` and `DEBUG_TOKEN` are secrets, never vars.
+
+### Debug: resend the last announcement from the Worker
+
+`npm run debug:resend` (reads `DEBUG_TOKEN`, and optionally `DEBUG_URL`, from `.env`)
+makes the Worker post the card of the latest day saved in D1 again, so the
+Cloudflare → Teams path can be tested on demand. **It posts a duplicate in Teams**
+and never changes the day's status. It prints `{date, outcome, httpStatus | errorName, ms}`.
+
+If a day got stuck in `sending` and **nothing was posted**, set it back to pending so
+the next cron run (until `ANNOUNCEMENT_LAST_TRY`) sends it:
+`npx wrangler d1 execute teams-bot --remote --command "UPDATE days SET status='pending' WHERE date='YYYY-MM-DD' AND status='sending'"`.
 
 ### Deploying changes
 
