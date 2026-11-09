@@ -718,8 +718,9 @@ test("HTTP boundary posts an Adaptive Card, accepts 202, rejects failures and re
   );
   status = 429;
   await assert.rejects(postCard(url, card), /HTTP 429/);
+  // A redirect is not followed: nothing was posted, so it is a (retryable) rejection.
   status = 302;
-  await assert.rejects(postCard(url, card), /network error/);
+  await assert.rejects(postCard(url, card), (error) => error instanceof WebhookRejectedError && /HTTP 302/.test(error.message));
 });
 
 test("CLI preview commands do not need a webhook; posting commands report missing configuration", async (t) => {

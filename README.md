@@ -124,7 +124,7 @@ stop the scheduler before using `once`. After a hard crash a stale
 lock file** after confirming the process is gone.
 
 Assignments are saved **before** posting. If the webhook answers with a non-2xx
-HTTP status, the day returns to `pending` and the same plan is retried
+HTTP status (redirects are not followed, so a 3xx counts too), the day returns to `pending` and the same plan is retried
 automatically on the next run. Network errors and timeouts stop the process with
 a nonzero exit code and leave the day `sending` (blocked): a crash or timeout can
 happen after Teams accepted a message, and exactly-once delivery cannot be
