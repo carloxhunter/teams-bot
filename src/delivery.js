@@ -16,14 +16,47 @@ export function validateWebhook(value) {
 }
 
 export class WebhookRejectedError extends Error {
-  constructor(status) {
+  constructor(status, ms) {
     super(`Webhook returned HTTP ${status}. Check the Workflow run history before retrying.`);
     this.name = "WebhookRejectedError";
     this.status = status;
+    this.ms = ms;
   }
 }
 
+// Network error or timeout: Teams may or may not have posted the card.
+export class WebhookUncertainError extends Error {
+  constructor({ kind, errorName, detail, ms }) {
+    super(`Webhook ${kind} (${errorName}${detail ? `: ${detail}` : ""}) after ${ms} ms: network error or timeout, ` +
+      "delivery uncertain. Check Teams and Workflow run history before retrying.");
+    this.name = "WebhookUncertainError";
+    this.kind = kind;
+    this.errorName = errorName;
+    this.detail = detail;
+    this.ms = ms;
+  }
+}
+
+export class DeliveryUncertainError extends Error {
+  constructor() {
+    super("Delivery is uncertain. Check Teams and Workflow run history, then use --once --retry only if no message was posted.");
+    this.name = "DeliveryUncertainError";
+  }
+}
+
+// Error messages may echo the secret webhook URL: strip it and any other URL.
+function redact(text, url) {
+  const parsed = new URL(url);
+  return String(text ?? "")
+    .split(url).join("<url>")
+    .replace(/https?:\/\/\S+/g, "<url>")
+    .split(`${parsed.host}${parsed.pathname}`).join("<url>")
+    .split(parsed.search || "\0").join("")
+    .slice(0, 200);
+}
+
 export async function postCard(url, card) {
+  const started = Date.now();
   let response;
   try {
     response = await fetch(url, {
@@ -33,14 +66,22 @@ export async function postCard(url, card) {
       signal: AbortSignal.timeout(15_000),
       redirect: "error",
     });
-  } catch {
+  } catch (error) {
     // Never include fetch's cause: it can contain the secret webhook URL.
-    throw new Error("Webhook network error or timeout. Check Teams and Workflow run history before retrying.");
+    const errorName = typeof error?.name === "string" ? error.name : "Error";
+    throw new WebhookUncertainError({
+      kind: ["TimeoutError", "AbortError"].includes(errorName) ? "timeout" : "network-error",
+      errorName,
+      detail: redact(error?.message, url),
+      ms: Date.now() - started,
+    });
   }
   await response.body?.cancel();
+  const ms = Date.now() - started;
   if (!response.ok) {
-    throw new WebhookRejectedError(response.status);
+    throw new WebhookRejectedError(response.status, ms);
   }
+  return { httpStatus: response.status, ms };
 }
 
 export async function announceWith({
@@ -51,7 +92,7 @@ export async function announceWith({
   let plan = planDay(state, config, day);
   if (plan.status === "sent" && !force) return "already-sent";
   if (plan.status === "sending" && !retry) {
-    throw new Error("Delivery is uncertain. Check Teams and Workflow run history, then use --once --retry only if no message was posted.");
+    throw new DeliveryUncertainError();
   }
   const participantIds = config.participants.map(participant =>
     typeof participant === "string" ? participant : participant.id);
