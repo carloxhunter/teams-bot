@@ -64,7 +64,8 @@ export async function postCard(url, card) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(card),
       signal: AbortSignal.timeout(15_000),
-      redirect: "error",
+      // workerd rejects "error"; "manual" never follows a redirect, and a 3xx is then a rejection (not posted).
+      redirect: "manual",
     });
   } catch (error) {
     // Never include fetch's cause: it can contain the secret webhook URL.

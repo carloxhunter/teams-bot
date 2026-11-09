@@ -40,13 +40,17 @@ export async function count(table) {
 export function mockFetch(respond = () => new Response("ok", { status: 200 })) {
   const calls = [];
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    // Mirror workerd: it rejects redirect "error" before sending anything (that hid a production bug).
+    if (init?.redirect !== undefined && !["follow", "manual"].includes(init.redirect)) {
+      throw new TypeError(`Invalid redirect value, must be one of "follow" or "manual"`);
+    }
     const url = String(input instanceof Request ? input.url : input);
     const raw = init?.body;
     let body = raw;
     try {
       body = raw ? JSON.parse(raw) : undefined;
     } catch {}
-    calls.push({ url, method: init?.method ?? "GET", body });
+    calls.push({ url, method: init?.method ?? "GET", body, redirect: init?.redirect });
     return respond({ url, body });
   });
   return calls;
