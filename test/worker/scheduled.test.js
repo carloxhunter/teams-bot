@@ -51,9 +51,9 @@ describe("scheduled", () => {
     expect(posts(calls)).toHaveLength(1);
   });
 
-  test("S4: after the one-hour window nothing is posted or saved", async () => {
+  test("S4: after the last try (09:30 local) nothing is posted or saved", async () => {
     const calls = mockFetch();
-    await trigger("2026-11-10T13:00:00Z");
+    await trigger("2026-11-10T12:30:00Z");
     expect(posts(calls)).toHaveLength(0);
     expect(await count("days")).toBe(0);
   });
@@ -120,5 +120,98 @@ describe("scheduled", () => {
     expect(posts(calls)).toHaveLength(0);
     expect(await dayRow("2026-11-10")).toBeNull();
     expect(errorLog).toHaveBeenCalled();
+  });
+
+  test("N1: summer 08:30 local (11:30Z) posts and saves the day as sent", async () => {
+    const calls = mockFetch();
+    await trigger("2026-11-10T11:30:00Z");
+    expect(posts(calls)).toHaveLength(1);
+    expect((await dayRow("2026-11-10")).status).toBe("sent");
+  });
+
+  test("N2: summer 08:25 local (11:25Z), before the start, posts nothing and saves nothing (characterization)", async () => {
+    const calls = mockFetch();
+    await trigger("2026-11-10T11:25:00Z");
+    expect(posts(calls)).toHaveLength(0);
+    expect(await dayRow("2026-11-10")).toBeNull();
+  });
+
+  test("N3: winter 08:25 local (12:25Z) posts nothing, 08:30 local (12:30Z) posts", async () => {
+    const calls = mockFetch();
+    await trigger("2026-07-15T12:25:00Z");
+    expect(posts(calls)).toHaveLength(0);
+    await trigger("2026-07-15T12:30:00Z");
+    expect(posts(calls)).toHaveLength(1);
+  });
+
+  test("N4: summer boundary: pending at 08:30 is retried and sent at 09:25 local (12:25Z)", async () => {
+    let status = 500;
+    const calls = mockFetch(() => new Response("err", { status }));
+    await trigger("2026-11-10T11:30:00Z");
+    expect((await dayRow("2026-11-10"))?.status).toBe("pending");
+    status = 200;
+    await trigger("2026-11-10T12:25:00Z");
+    expect(posts(calls)).toHaveLength(2);
+    expect((await dayRow("2026-11-10")).status).toBe("sent");
+  });
+
+  test("N5: winter: retry at 09:25 local (13:25Z) is sent", async () => {
+    let status = 500;
+    const calls = mockFetch(() => new Response("err", { status }));
+    await trigger("2026-07-15T12:30:00Z");
+    expect((await dayRow("2026-07-15"))?.status).toBe("pending");
+    status = 200;
+    await trigger("2026-07-15T13:25:00Z");
+    expect(posts(calls)).toHaveLength(2);
+    expect((await dayRow("2026-07-15")).status).toBe("sent");
+  });
+
+  test("N5: winter: 09:30 local (13:30Z) posts nothing and saves nothing", async () => {
+    const calls = mockFetch();
+    await trigger("2026-07-16T13:30:00Z");
+    expect(posts(calls)).toHaveLength(0);
+    expect(await dayRow("2026-07-16")).toBeNull();
+  });
+
+  test("N6: summer retries every 5 minutes reuse the same plan until sent", async () => {
+    let status = 500;
+    const calls = mockFetch(() => new Response("err", { status }));
+    await trigger("2026-11-10T11:30:00Z");
+    const first = await dayRow("2026-11-10");
+    expect(first?.status).toBe("pending");
+    await trigger("2026-11-10T11:35:00Z");
+    status = 200;
+    await trigger("2026-11-10T11:40:00Z");
+    expect(posts(calls)).toHaveLength(3);
+    const last = await dayRow("2026-11-10");
+    expect(last.status).toBe("sent");
+    expect(last.presenter).toBe(first.presenter);
+    expect(last.speaking_order).toBe(first.speaking_order);
+  });
+
+  test("N7: a missing ANNOUNCEMENT_LAST_TRY posts nothing, saves nothing and logs an error", async () => {
+    const calls = mockFetch();
+    await trigger("2026-11-10T11:30:00Z", workerEnv({ ANNOUNCEMENT_LAST_TRY: undefined }));
+    expect(posts(calls)).toHaveLength(0);
+    expect(await dayRow("2026-11-10")).toBeNull();
+    expect(errorLog).toHaveBeenCalled();
+  });
+
+  test.each([
+    ["malformed 9:25x", "9:25x"],
+    ["earlier than the start 08:00", "08:00"],
+  ])("N8: an invalid ANNOUNCEMENT_LAST_TRY (%s) posts nothing, saves nothing and logs an error", async (_label, value) => {
+    const calls = mockFetch();
+    await trigger("2026-11-10T11:30:00Z", workerEnv({ ANNOUNCEMENT_LAST_TRY: value }));
+    expect(posts(calls)).toHaveLength(0);
+    expect(await dayRow("2026-11-10")).toBeNull();
+    expect(errorLog).toHaveBeenCalled();
+  });
+
+  test("N9: ANNOUNCEMENT_LAST_TRY governs the window (09:15 local is after a 09:00 last try)", async () => {
+    const calls = mockFetch();
+    await trigger("2026-11-10T12:15:00Z", workerEnv({ ANNOUNCEMENT_LAST_TRY: "09:00" }));
+    expect(posts(calls)).toHaveLength(0);
+    expect(await dayRow("2026-11-10")).toBeNull();
   });
 });

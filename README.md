@@ -150,11 +150,13 @@ rather than the retiring Microsoft 365 connectors.
 The same rotation also runs as a Cloudflare Worker (`src/worker/index.js`) driven
 by a cron trigger; the Node CLI above keeps working unchanged.
 
-- **Cron:** `0,15,30 12,13 * * 1-5` (UTC). Cron is UTC-only, so it fires at both
-  12:xx and 13:xx to cover Chile's DST changes. On each run the Worker converts the
-  time to `TIME_ZONE` (`America/Santiago`) and only acts on a weekday at or after
-  `ANNOUNCEMENT_TIME` (`09:00`) and before one hour later. The extra triggers retry
-  a rejected post within that window; a day already sent is never posted twice.
+- **Cron:** `*/5 11,12,13 * * 1-5` (UTC), every 5 minutes. Cron is UTC-only, so it
+  covers Chile's DST changes. On each run the Worker converts the time to
+  `TIME_ZONE` (`America/Santiago`) and only acts on a weekday from
+  `ANNOUNCEMENT_TIME` (`08:30`) to `ANNOUNCEMENT_LAST_TRY` (`09:25`) inclusive. It
+  retries every 5 minutes after a rejected post; a day already sent is never posted
+  twice. A missing or invalid `ANNOUNCEMENT_LAST_TRY` (or one before the start)
+  posts nothing and logs an error.
 - **Holidays:** Chilean public holidays live in the `holidays` D1 table (seeded by
   `migrations/0002_holidays_cl.sql`, 2026-2027; verify against an official source
   and add later years with a new migration). Holidays are skipped.
