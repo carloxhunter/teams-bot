@@ -15,7 +15,8 @@
     {
       "binding": "DB",
       "database_name": "teams-bot",
-      // No database_id: auto-provisioned on first deploy.
+      // Managed by Terraform in carloxhunter/infra (stack teams-bot), not created by Wrangler.
+      "database_id": "3c913ae2-447e-41d0-81aa-dc8da07181ab",
       "migrations_dir": "migrations"
     }
   ],
